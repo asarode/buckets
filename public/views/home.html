@@ -1,0 +1,46 @@
+<div ng-controller="mainController as main">
+	<div class="row">
+		<div class="text-center hero col-xs-12">
+			<a class="button main-action">Make a bucket!</a>
+		</div>
+	</div>
+	<div class="row">
+		<div class="hero col-xs-12">
+			<p class="text-center">Buckets are collections of resources that help you learn one specific micro-topic.</p>
+		</div>
+	</div>
+	<div class="row">
+		<div class="text-center col-xs-12">
+			<input type="text" placeholder="Search buckets...">
+		</div>
+	</div>
+	<div class="row">
+		<div class="text-center col-xs-12">
+			<a class="button minimal active">Recent</a>
+			<a class="button minimal">Popular</a>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="bucket-wrapper" ng-repeat="bucket in main.buckets">
+				<div class="bucket">
+					<h3 class="bucket-title">{{ bucket.title }}</h3>
+					<div class="bucket-details">
+						<span>By: {{ bucket.author }}</span>
+						<span><i class="glyphicon glyphicon-star"></i> {{ bucket.stargazers.length }} Stars</span>
+						<span>{{ bucket.createdAt }}</span>
+						<span>{{ bucket.level }}</span>
+					</div>
+					<div class="bucket-links">
+						<div class="link" ng-repeat="resource in bucket.links">
+							<span>
+								{{ resource.type }}
+							</span>
+							<a href="{{ resource.link }}">{{ resource.title }}</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
