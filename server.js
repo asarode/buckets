@@ -1,15 +1,29 @@
 /* ====================
          MODULES
    ==================== */
-var express = require("express");
-var bodyParser = require("body-parser");
-var mongoose = require("mongoose");
+var express = require("express")
+  , bodyParser = require("body-parser")
+  , mongoose = require("mongoose")
+  , passport = require('passport')
+  , cookieParser = require('cookie-parser')
+  , session = require('express-session')
+  , GitHubStrategy = require('passport-github2').Strategy
+  , oauth = require('./config/oauth')
+  , appSecret = require('./config/secret').secret;
 
 
 var app = express();
 	app.use(bodyParser.urlencoded({ extended: true }));
 	app.use(bodyParser.json());
 	app.use(express.static(__dirname + "/public"));
+	app.use(cookieParser());
+	app.use(session({ 
+		secret: appSecret,
+		resave: false,
+		saveUninitialized: false 
+	}));
+  	app.use(passport.initialize());
+  	app.use(passport.session());
 
 	app.use(function(req, res, next) {
 		res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,27 +35,66 @@ var app = express();
 /* ====================
           MODELS
    ==================== */
-var User = require("./app/models/users");
-var Bucket = require("./app/models/buckets");
+var User = require("./app/models/users")
+  , Bucket = require("./app/models/buckets");
 
 /* ====================
           ROUTES
    ==================== */
-app.get("/buckets", function(req, res) {
-	Bucket.find().sort("-createdAt").exec(function(err, data) {
+
+function ensureAuth(req, res, next) {
+	if (req.isAuthenticated()) { return next(); }
+	res.redirect('/#/login');
+}
+
+// PASSPORT
+passport.use(new GitHubStrategy({
+		clientID: oauth.githubAuth.clientId,
+		clientSecret: oauth.githubAuth.clientSecret,
+		callbackURL: oauth.githubAuth.callbackURL
+	},
+	function(accessToken, refreshToken, profile, done) {
+		User.findOrCreate({ githubId: profile.id }, function(err, user) {
+			return done(err, user);
+		});
+	}
+));
+
+app.get('/auth/github', 
+	passport.authenticate('github', { scope: [ 'user:email' ] })
+)
+
+app.get('/auth/github/callback',
+	passport.authenticate('github', { failureRedirect: '/login' }),
+	function(req, res) {
+		// Successful authentication. Redirect to home.
+		res.redirect('/');
+	}
+);
+
+app.get('/me', ensureAuth, function(req, res) {
+	res.json(req.user);
+});
+
+app.get('/buckets', function(req, res) {
+	Bucket.find().sort('-createdAt').exec(function(err, data) {
 		if (err) res.send(err);
 		res.json(data);
 	});
 });
 
-app.get("buckets/:bucketId", function(req, res) {
+app.get('buckets/:bucketId', function(req, res) {
 	Bucket.findById(req.params.bucketId, function(err, bucket) {
 		if (err) res.send(err);
 		res.json(bucket);
 	});
 });
 
-app.post("/buckets", function(req, res) {
+app.get('/buckets/create', ensureAuth, function(req, res) {
+	res.render('create');
+});
+
+app.post('/buckets', function(req, res) {
 	var bucket = new Bucket();
 
 	bucket.title = req.body.title;
@@ -58,12 +111,12 @@ app.post("/buckets", function(req, res) {
 				{ _id: req.body.ownerId },
 				{ $push: { buckets: bucket._id } }
 			).exec();
-			res.send({ message: "Created bucket." });
+			res.send({ message: 'Created bucket.' });
 		}
 	});
 });
 
-app.put("/buckets/:bucketId/star", function(req, res) {
+app.put('/buckets/:bucketId/star', function(req, res) {
 	Bucket.findById(req.params.bucketId, function(err, bucket) {
 		if (err) res.send(err);
 
@@ -78,7 +131,7 @@ app.put("/buckets/:bucketId/star", function(req, res) {
 				bucket.save(function(err) {
 					if (err) res.send(err);
 					res.json({ 
-						message: "Bucket starred.", 
+						message: 'Bucket starred.', 
 						bucket: bucket
 					});
 				});
@@ -95,7 +148,7 @@ app.put("/buckets/:bucketId/star", function(req, res) {
 				bucket.save(function(err) {
 					if (err) res.send(err);
 					res.json({
-						message: "Bucket unstarred.",
+						message: 'Bucket unstarred.',
 						bucket: bucket
 					});
 				});
@@ -104,66 +157,66 @@ app.put("/buckets/:bucketId/star", function(req, res) {
 	});
 });
 
-app.delete("buckets/:bucketId", function(req, res) {
+app.delete('buckets/:bucketId', function(req, res) {
 	Bucket.remove({ _id: req.params.bucketId }, function(err, bucket) {
 		if (err) res.send(err);
-		res.send({ message: "Bucket deleted." });
+		res.send({ message: 'Bucket deleted.' });
 	});
 });
 
-app.get("/users", function(req, res) {
+app.get('/users', function(req, res) {
 	User.find(function(err, data) {
 		if (err) res.send(err);
 		res.json(data);
 	});
 });
 
-app.get("users/:userId", function(req, res) {
+app.get('users/:userId', function(req, res) {
 	User.findById(req.params.userId, function(err, user) {
 		if (err) res.send(err);
 		res.json(user);
 	});
 });
 
-app.post("/users", function(req, res) {
+app.post('/users', function(req, res) {
 	var user = new User();
 
-	user.oauthId = "temp",
+	user.oauthId = 'temp',
 	user.name = req.body.name;
-	user.avatarURL = "temp",
-	user.profileURL = "temp",
+	user.avatarURL = 'temp',
+	user.profileURL = 'temp',
 	user.stargazing = [];
 	user.buckets = [];	
 
 	user.save(function(err) {
 		if (err) res.send(err);
-		res.json({ message: "Created user." });
+		res.json({ message: 'Created user.' });
 	});
 });
 
-app.delete("users/:userId", function(req, res) {
+app.delete('users/:userId', function(req, res) {
 	User.remove({ _id: req.params.userId }, function(err, user) {
 		if (err) res.send(err);
-		res.json({ message: "User deleted." });
+		res.json({ message: 'User deleted.' });
 	});
 });
 
 /* ====================
          DATABASE
    ==================== */
-var db = require("./config/database");
+var db = require('./config/database');
 mongoose.connect(db.url, function(err, database) {
 	if (err) console.log(err);
-	else console.log("Connected to database.");
+	else console.log('Connected to database.');
 });
 
 /* ====================
         START APP
    ==================== */
-app.set("port", (process.env.PORT || 5000));
-var server = app.listen(app.get("port"), function() {
-	var port = app.get("port");
-	console.log("LearnBuckets app listening on port %s", port);
+app.set('port', (process.env.PORT || 5000));
+var server = app.listen(app.get('port'), function() {
+	var port = app.get('port');
+	console.log('LearnBuckets app listening on port %s', port);
 });
 
 

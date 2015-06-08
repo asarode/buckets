@@ -11,6 +11,10 @@ BucketsApp.config(function($stateProvider, $urlRouterProvider) {
    			url: '/',
    			templateUrl: 'views/home.html'
    		})
+      .state('login', {
+        url: '/login',
+        tempalteUrl: 'views/login.html'
+      })
 });
 
 BucketsApp.controller('mainController', function($http, $scope, Buckets) {
